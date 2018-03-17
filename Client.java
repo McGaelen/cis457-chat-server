@@ -3,7 +3,7 @@ import java.net.*;
 import java.nio.*;
 import java.nio.channels.*;
 
-class tcpechoclient {
+class Client {
     public static void main(String args[]) {
         Console cons = System.console();
         int portNum = Integer.parseInt(cons.readLine("What port number? "));
