@@ -10,6 +10,7 @@ class Client {
         String ipAddr = args[1];
 
         String message = "";
+		boolean printPrompt = false;
         try {
             SocketChannel sc = SocketChannel.open();
             sc.connect(new InetSocketAddress(ipAddr, portNum));
@@ -20,13 +21,18 @@ class Client {
             username = "!rename " + username;
             sc.write(ByteBuffer.wrap(username.getBytes()));
 
+			System.out.print(">> ");
             while (true) {
-                message = cons.readLine("Enter your message: ");
-                if (message.equals("quit")) {
+				if (printPrompt) {
+					System.out.print(">> ");
+				}
+				message = cons.readLine();
+                if (message.equals("!quit")) {
                     break;
                 }
                 ByteBuffer buf = ByteBuffer.wrap(message.getBytes());
                 sc.write(buf);
+				printPrompt = true;
             }
             sc.close();
         } catch (IOException e) {
@@ -55,9 +61,10 @@ class ClientThread extends Thread {
                 buffer.get(a);
                 recieved = new String(a);
                 System.out.println(recieved);
-                if (recieved.equals("You have been kicked.")) {
+                if (recieved.equals("You have been kicked.") || recieved.equals("!shutdown")) {
                     System.exit(0);
                 }
+				System.out.print(">> ");
             }
         } catch (IOException e) {
             System.out.println(e.getMessage());

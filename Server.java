@@ -15,6 +15,24 @@ class Server {
 
         userSockets = new HashMap<>();
 
+		Runtime.getRuntime().addShutdownHook(new Thread() {
+            @Override
+            public void run() {
+				System.out.println("running shutdown hook");
+				Iterator it = Server.userSockets.entrySet().iterator();
+				while (it.hasNext()) {
+					Map.Entry pair = (Map.Entry) it.next();
+					SocketChannel sc = (SocketChannel)pair.getValue();
+					try {
+						sc.write(ByteBuffer.wrap("!shutdown".getBytes()));
+						sc.close();
+					} catch (IOException e) {
+						System.out.println(e.getMessage());
+					}
+				}
+            }
+        });
+
         SocketChannel sc;
         try {
             ServerSocketChannel c = ServerSocketChannel.open();
@@ -53,7 +71,11 @@ class TcpServerThread extends Thread {
                 byte[] a = new byte[buffer.remaining()];
                 buffer.get(a);
                 command = new String(a);
-                System.out.println("Got from client " + username + " :" + command);
+				if (command.equals("")) {
+					continue;
+				}
+
+                System.out.println("Got from client " + username + ": " + command);
                 final String[] args;
                 args = command.split(" ");
 
@@ -99,12 +121,16 @@ class TcpServerThread extends Thread {
                         Map.Entry pair = (Map.Entry)it.next();
                         if (!pair.getValue().equals(sc)) {
                             SocketChannel sc = (SocketChannel)pair.getValue();
-                            String response = command.substring(command.indexOf(' '));
+                            String response = command.substring(command.indexOf(' ') + 1);
                             sc.write(ByteBuffer.wrap((username + ": " + response).getBytes()));
                         }
                     }
                 } else {
-                    Server.userSockets.get(args[0]).write(ByteBuffer.wrap((username + ": " + command.substring(command.indexOf(' '))).getBytes()));
+					try {
+                    	Server.userSockets.get(args[0]).write(ByteBuffer.wrap((username + ": " + command.substring(command.indexOf(' ') + 1)).getBytes()));
+					} catch (NullPointerException e) {
+						sc.write(ByteBuffer.wrap("Requested user does not exist.".getBytes()));
+					}
                 }
             }
         } catch (IOException e) {
