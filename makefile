@@ -1,3 +1,3 @@
 run:
-    javac Client.java
-    javac Server.java
+	javac Client.java
+	javac Server.java

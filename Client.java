@@ -6,15 +6,19 @@ import java.nio.channels.*;
 class Client {
     public static void main(String args[]) {
         Console cons = System.console();
-        int portNum = Integer.parseInt(cons.readLine("What port number? "));
-        String ipAddr = cons.readLine("What IP Address? ");
+        int portNum = Integer.parseInt(args[0]);
+        String ipAddr = args[1];
 
         String message = "";
         try {
             SocketChannel sc = SocketChannel.open();
             sc.connect(new InetSocketAddress(ipAddr, portNum));
-            TcpServerThread t = new TcpServerThread(sc);
+            ClientThread t = new ClientThread(sc);
             t.start();
+
+            String username = cons.readLine("What username? ");
+            username = "!rename " + username;
+            sc.write(ByteBuffer.wrap(username.getBytes()));
 
             while (true) {
                 message = cons.readLine("Enter your message: ");
@@ -31,11 +35,11 @@ class Client {
     }
 }
 
-class TcpServerThread extends Thread {
+class ClientThread extends Thread {
     SocketChannel sc;
     Console cons;
 
-    TcpServerThread(SocketChannel sc) {
+    ClientThread(SocketChannel sc) {
         this.sc = sc;
         cons = System.console();
     }
@@ -50,7 +54,10 @@ class TcpServerThread extends Thread {
                 byte[] a = new byte[buffer.remaining()];
                 buffer.get(a);
                 recieved = new String(a);
-                System.out.println("Got from server: " + recieved);
+                System.out.println(recieved);
+                if (recieved.equals("You have been kicked.")) {
+                    System.exit(0);
+                }
             }
         } catch (IOException e) {
             System.out.println(e.getMessage());
