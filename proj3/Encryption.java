@@ -1,3 +1,5 @@
+package proj3;
+
 import java.io.*;
 import javax.crypto.*;
 import javax.crypto.spec.*;
@@ -9,25 +11,25 @@ class Encryption {
 	private PrivateKey privKey;
 	private PublicKey pubKey;
 
-	public static void main(String args[]) {
-		cryptotest c = new cryptotest();
-		c.setPrivateKey("RSApriv.der");
-		c.setPublicKey("RSApub.der");
-		SecretKey s = c.generateAESKey();
-		byte encryptedsecret[] = c.RSAEncrypt(s.getEncoded());
-		SecureRandom r = new SecureRandom();
-		byte ivbytes[] = new byte[16];
-		r.nextBytes(ivbytes);
-		IvParameterSpec iv = new IvParameterSpec(ivbytes);
-		String plaintext = "This is a test string to encrypt";
-		byte ciphertext[] = c.encrypt(plaintext.getBytes(),s,iv);
-		System.out.printf("CipherText: %s%n",DatatypeConverter.printHexBinary(ciphertext));
-		byte decryptedsecret[] = c.RSADecrypt(encryptedsecret);
-		SecretKey ds = new SecretKeySpec(decryptedsecret,"AES");
-		byte decryptedplaintext[] = c.decrypt(ciphertext,ds,iv);
-		String dpt = new String(decryptedplaintext);
-		System.out.printf("PlainText: %s%n",dpt);
-	}
+//	public static void main(String args[]) {
+//		cryptotest c = new cryptotest();
+//		c.setPrivateKey("RSApriv.der");
+//		c.setPublicKey("RSApub.der");
+//		SecretKey s = c.generateAESKey();
+//		byte encryptedsecret[] = c.RSAEncrypt(s.getEncoded());
+//		SecureRandom r = new SecureRandom();
+//		byte ivbytes[] = new byte[16];
+//		r.nextBytes(ivbytes);
+//		IvParameterSpec iv = new IvParameterSpec(ivbytes);
+//		String plaintext = "This is a test string to encrypt";
+//		byte ciphertext[] = c.encrypt(plaintext.getBytes(),s,iv);
+//		System.out.printf("CipherText: %s%n",DatatypeConverter.printHexBinary(ciphertext));
+//		byte decryptedsecret[] = c.RSADecrypt(encryptedsecret);
+//		SecretKey ds = new SecretKeySpec(decryptedsecret,"AES");
+//		byte decryptedplaintext[] = c.decrypt(ciphertext,ds,iv);
+//		String dpt = new String(decryptedplaintext);
+//		System.out.printf("PlainText: %s%n",dpt);
+//	}
 	public Encryption(){
 		privKey=null;
 		pubKey=null;
@@ -51,7 +53,8 @@ class Encryption {
 			byte[] plaintext = c.doFinal(ciphertext);
 			return plaintext;
 		}catch(Exception e){
-			System.out.println("AES Decrypt Exception");
+			System.out.println(e.getCause() + ": " + e.getMessage());
+            e.printStackTrace();
 			System.exit(1);
 			return null;
 		}
@@ -63,7 +66,7 @@ class Encryption {
 			byte[] plaintext=c.doFinal(ciphertext);
 			return plaintext;
 		}catch(Exception e){
-			System.out.println("RSA Decrypt Exception");
+			System.out.println(e.getMessage());
 			System.exit(1);
 			return null;
 		}

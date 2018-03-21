@@ -1,13 +1,20 @@
+package proj3;
+
+import javax.crypto.SecretKey;
+import javax.crypto.spec.IvParameterSpec;
+import javax.crypto.spec.SecretKeySpec;
 import java.io.*;
 import java.net.*;
 import java.nio.*;
 import java.nio.channels.*;
+import java.security.SecureRandom;
 import java.util.HashMap;
 import java.util.Iterator;
 import java.util.Map;
+import java.util.Scanner;
 
 class Server {
-    public static HashMap<String, SocketChannel> userSockets;
+    public static HashMap<String, ClientConnection> userSockets;
     public static final String password = "password";
 
     public static void main(String args[]) {
@@ -22,10 +29,10 @@ class Server {
 				Iterator it = Server.userSockets.entrySet().iterator();
 				while (it.hasNext()) {
 					Map.Entry pair = (Map.Entry) it.next();
-					SocketChannel sc = (SocketChannel)pair.getValue();
+					ClientConnection cc = (ClientConnection)pair.getValue();
 					try {
-						sc.write(ByteBuffer.wrap("!shutdown".getBytes()));
-						sc.close();
+						cc.sc.write(ByteBuffer.wrap("!shutdown".getBytes()));
+						cc.sc.close();
 					} catch (IOException e) {
 						System.out.println(e.getMessage());
 					}
@@ -37,10 +44,17 @@ class Server {
         try {
             ServerSocketChannel c = ServerSocketChannel.open();
             c.bind(new InetSocketAddress(portNum));
+            Encryption crypto = new Encryption();
+            crypto.setPrivateKey("RSApriv.der");
             while (true) {
                 sc = c.accept();
-                userSockets.put("", sc);
-                TcpServerThread t = new TcpServerThread(sc);
+                ByteBuffer encryptedSymKey = ByteBuffer.allocate(256);
+                sc.read(encryptedSymKey);
+                byte decryptedsecret[] = crypto.RSADecrypt(encryptedSymKey.array());
+		        SecretKey symmetricKey = new SecretKeySpec(decryptedsecret, "AES");
+
+                userSockets.put("", new ClientConnection(sc, symmetricKey));
+                TcpServerThread t = new TcpServerThread(sc, symmetricKey);
                 t.start();
             }
         } catch (IOException e) {
@@ -51,11 +65,13 @@ class Server {
 
 class TcpServerThread extends Thread {
     SocketChannel sc;
+    SecretKey key;
     Console cons;
     String username;
 
-    TcpServerThread(SocketChannel sc) {
+    TcpServerThread(SocketChannel sc, SecretKey key) {
         this.sc = sc;
+        this.key = key;
         cons = System.console();
         username = "";
     }
@@ -63,14 +79,24 @@ class TcpServerThread extends Thread {
     public void run() {
         String command;
 
+        Encryption crypto = new Encryption();
+        SecureRandom r = new SecureRandom();
         try {
             while (true) {
+                ByteBuffer ivbuffer = ByteBuffer.allocate(16);
+                sc.read(ivbuffer);
+                IvParameterSpec iv = new IvParameterSpec(ivbuffer.array());
+
                 ByteBuffer buffer = ByteBuffer.allocate(4096);
-                sc.read(buffer);
+                int size = sc.read(buffer);
                 buffer.flip();
-                byte[] a = new byte[buffer.remaining()];
-                buffer.get(a);
-                command = new String(a);
+                byte[] bytes = new byte[size];
+                buffer.get(bytes,0,size);
+
+                byte[] decryptedMessage = crypto.decrypt(bytes, key, iv);
+//                byte[] a = new byte[buffer.remaining()];
+//                buffer.get(a);
+                command = new String(decryptedMessage);
 				if (command.equals("")) {
 					continue;
 				}
@@ -82,11 +108,11 @@ class TcpServerThread extends Thread {
                 if (args[0].equals("!rename")) {
                     username = args[1];
 
-                    HashMap<String, SocketChannel> userSocketsCopy = new HashMap<>(Server.userSockets);
-                    userSocketsCopy.forEach( (name, sc) -> {
-                        if (this.sc.equals(sc)) {
+                    HashMap<String, ClientConnection> userSocketsCopy = new HashMap<>(Server.userSockets);
+                    userSocketsCopy.forEach( (name, cc) -> {
+                        if (this.sc.equals(cc.sc)) {
                             Server.userSockets.remove(name);
-                            Server.userSockets.put(args[1], sc);
+                            Server.userSockets.put(args[1], new ClientConnection(sc, cc.symmetricKey));
                             System.out.println(Server.userSockets);
                         }
                     });
@@ -113,7 +139,7 @@ class TcpServerThread extends Thread {
                             }
                         }
                     } else {
-                        sc.write(ByteBuffer.wrap("Naughty naughty! Bad Client!".getBytes()));
+                        sc.write(ByteBuffer.wrap("Naughty naughty! Bad proj3.Client!".getBytes()));
                     }
                 } else if (args[0].equals("!all")) {
                     Iterator it = Server.userSockets.entrySet().iterator();
@@ -127,7 +153,16 @@ class TcpServerThread extends Thread {
                     }
                 } else {
 					try {
-                    	Server.userSockets.get(args[0]).write(ByteBuffer.wrap((username + ": " + command.substring(command.indexOf(' ') + 1)).getBytes()));
+//                        byte ivbytes[] = new byte[16];
+//                        r.nextBytes(ivbytes);
+//                        IvParameterSpec sendiv = new IvParameterSpec(ivbytes);
+                        byte[] message = (username + ": " + command.substring(command.indexOf(' ') + 1)).getBytes();
+                        byte[] encryptedMessage = crypto.encrypt(message, Server.userSockets.get(args[0]).symmetricKey, iv);
+                        Server.userSockets.get(args[0]).sc.write(ByteBuffer.wrap(iv.getIV()));
+                        Server.userSockets.get(args[0]).sc.write(ByteBuffer.wrap(encryptedMessage));
+//                        sc.write(buf);
+
+//                    	Server.userSockets.get(args[0]).sc.write(ByteBuffer.wrap());
 					} catch (NullPointerException e) {
 						sc.write(ByteBuffer.wrap("Requested user does not exist.".getBytes()));
 					}
@@ -136,5 +171,19 @@ class TcpServerThread extends Thread {
         } catch (IOException e) {
             System.out.println(e.getMessage());
         }
+    }
+}
+
+class ClientConnection {
+    public SocketChannel sc;
+    public SecretKey symmetricKey;
+
+    public ClientConnection(SocketChannel sc, SecretKey symmetricKey) {
+        this.sc = sc;
+        this.symmetricKey = symmetricKey;
+    }
+
+    public String toString() {
+        return "SocketChannel: " + sc + "  SecretKey: " + symmetricKey.getEncoded();
     }
 }

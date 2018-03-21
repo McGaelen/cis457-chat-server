@@ -1,7 +1,12 @@
+package proj3;
+
+import javax.crypto.SecretKey;
+import javax.crypto.spec.IvParameterSpec;
 import java.io.*;
 import java.net.*;
 import java.nio.*;
 import java.nio.channels.*;
+import java.security.SecureRandom;
 
 class Client {
     public static void main(String args[]) {
@@ -11,10 +16,20 @@ class Client {
 
         String message = "";
 		boolean printPrompt = false;
+
+        SecretKey symmetricKey;
+        SecureRandom r = new SecureRandom();
         try {
             SocketChannel sc = SocketChannel.open();
             sc.connect(new InetSocketAddress(ipAddr, portNum));
-            ClientThread t = new ClientThread(sc);
+
+            Encryption crypto = new Encryption();
+            crypto.setPublicKey("RSApub.der");
+            symmetricKey = crypto.generateAESKey();
+            byte encryptedsecret[] = crypto.RSAEncrypt(symmetricKey.getEncoded());
+            sc.write(ByteBuffer.wrap(encryptedsecret));
+
+            ClientThread t = new ClientThread(sc, symmetricKey);
             t.start();
 
             String username = cons.readLine("What username? ");
@@ -30,7 +45,13 @@ class Client {
                 if (message.equals("!quit")) {
                     break;
                 }
-                ByteBuffer buf = ByteBuffer.wrap(message.getBytes());
+
+                byte ivbytes[] = new byte[16];
+		        r.nextBytes(ivbytes);
+		        IvParameterSpec iv = new IvParameterSpec(ivbytes);
+		        byte[] encryptedMessage = crypto.encrypt(message.getBytes(), symmetricKey, iv);
+                ByteBuffer buf = ByteBuffer.wrap(encryptedMessage);
+                sc.write(ByteBuffer.wrap(iv.getIV()));
                 sc.write(buf);
 				printPrompt = true;
             }
@@ -43,23 +64,33 @@ class Client {
 
 class ClientThread extends Thread {
     SocketChannel sc;
+    SecretKey key;
     Console cons;
 
-    ClientThread(SocketChannel sc) {
+    ClientThread(SocketChannel sc, SecretKey key) {
         this.sc = sc;
+        this.key = key;
         cons = System.console();
     }
 
     public void run() {
         String recieved;
+        Encryption crypto = new Encryption();
         try {
             while (true) {
+                ByteBuffer ivbuffer = ByteBuffer.allocate(16);
+                sc.read(ivbuffer);
+                IvParameterSpec iv = new IvParameterSpec(ivbuffer.array());
+
                 ByteBuffer buffer = ByteBuffer.allocate(4096);
-                sc.read(buffer);
+                int size = sc.read(buffer);
                 buffer.flip();
-                byte[] a = new byte[buffer.remaining()];
-                buffer.get(a);
-                recieved = new String(a);
+                byte[] bytes = new byte[size];
+                buffer.get(bytes,0,size);
+                byte[] decryptedMessage = crypto.decrypt(bytes, key, iv);
+//                byte[] a = new byte[buffer.remaining()];
+//                buffer.get(a);
+                recieved = new String(decryptedMessage);
                 System.out.println(recieved);
                 if (recieved.equals("You have been kicked.") || recieved.equals("!shutdown")) {
                     System.exit(0);
