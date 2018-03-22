@@ -11,7 +11,6 @@ import java.security.SecureRandom;
 import java.util.HashMap;
 import java.util.Iterator;
 import java.util.Map;
-import java.util.Scanner;
 
 class Server {
     public static HashMap<String, ClientConnection> userSockets;
@@ -22,23 +21,20 @@ class Server {
 
         userSockets = new HashMap<>();
 
-		Runtime.getRuntime().addShutdownHook(new Thread() {
-            @Override
-            public void run() {
-				System.out.println("running shutdown hook");
-				Iterator it = Server.userSockets.entrySet().iterator();
-				while (it.hasNext()) {
-					Map.Entry pair = (Map.Entry) it.next();
-					ClientConnection cc = (ClientConnection)pair.getValue();
-					try {
-						cc.sc.write(ByteBuffer.wrap("!shutdown".getBytes()));
-						cc.sc.close();
-					} catch (IOException e) {
-						System.out.println(e.getMessage());
-					}
-				}
+		Runtime.getRuntime().addShutdownHook(new Thread(() -> {
+            System.out.println("running shutdown hook");
+            Iterator it = Server.userSockets.entrySet().iterator();
+            while (it.hasNext()) {
+                Map.Entry pair = (Map.Entry) it.next();
+                ClientConnection cc = (ClientConnection)pair.getValue();
+                try {
+                    cc.sc.write(ByteBuffer.wrap("!shutdown".getBytes()));
+                    cc.sc.close();
+                } catch (IOException e) {
+                    System.out.println(e.getMessage());
+                }
             }
-        });
+        }));
 
         SocketChannel sc;
         try {
@@ -64,39 +60,41 @@ class Server {
 }
 
 class TcpServerThread extends Thread {
-    SocketChannel sc;
-    SecretKey key;
-    Console cons;
-    String username;
+    private SocketChannel sc;
+    private SecretKey key;
+    private Console cons;
+    private String username;
+    private Encryption crypto;
+    private SecureRandom r;
 
     TcpServerThread(SocketChannel sc, SecretKey key) {
         this.sc = sc;
         this.key = key;
         cons = System.console();
         username = "";
+        crypto = new Encryption();
+        r = new SecureRandom();
     }
 
     public void run() {
         String command;
 
-        Encryption crypto = new Encryption();
-        SecureRandom r = new SecureRandom();
         try {
             while (true) {
-                ByteBuffer ivbuffer = ByteBuffer.allocate(16);
-                sc.read(ivbuffer);
-                IvParameterSpec iv = new IvParameterSpec(ivbuffer.array());
-
-                ByteBuffer buffer = ByteBuffer.allocate(4096);
-                int size = sc.read(buffer);
-                buffer.flip();
-                byte[] bytes = new byte[size];
-                buffer.get(bytes,0,size);
-
-                byte[] decryptedMessage = crypto.decrypt(bytes, key, iv);
+//                ByteBuffer ivbuffer = ByteBuffer.allocate(16);
+//                sc.read(ivbuffer);
+//                IvParameterSpec iv = new IvParameterSpec(ivbuffer.array());
+//
+//                ByteBuffer buffer = ByteBuffer.allocate(4096);
+//                int size = sc.read(buffer);
+//                buffer.flip();
+//                byte[] bytes = new byte[size];
+//                buffer.get(bytes,0,size);
+//                System.out.println(bytes.length);
+//                byte[] decryptedMessage = crypto.decrypt(bytes, key, iv);
 //                byte[] a = new byte[buffer.remaining()];
 //                buffer.get(a);
-                command = new String(decryptedMessage);
+                command = new String(readSocket());
 				if (command.equals("")) {
 					continue;
 				}
@@ -139,7 +137,7 @@ class TcpServerThread extends Thread {
                             }
                         }
                     } else {
-                        sc.write(ByteBuffer.wrap("Naughty naughty! Bad proj3.Client!".getBytes()));
+                        sc.write(ByteBuffer.wrap("Naughty naughty! Bad Client!".getBytes()));
                     }
                 } else if (args[0].equals("!all")) {
                     Iterator it = Server.userSockets.entrySet().iterator();
@@ -156,10 +154,12 @@ class TcpServerThread extends Thread {
 //                        byte ivbytes[] = new byte[16];
 //                        r.nextBytes(ivbytes);
 //                        IvParameterSpec sendiv = new IvParameterSpec(ivbytes);
-                        byte[] message = (username + ": " + command.substring(command.indexOf(' ') + 1)).getBytes();
-                        byte[] encryptedMessage = crypto.encrypt(message, Server.userSockets.get(args[0]).symmetricKey, iv);
-                        Server.userSockets.get(args[0]).sc.write(ByteBuffer.wrap(iv.getIV()));
-                        Server.userSockets.get(args[0]).sc.write(ByteBuffer.wrap(encryptedMessage));
+                        String message = (username + ": " + command.substring(command.indexOf(' ') + 1));
+                        writeSocket(message, Server.userSockets.get(args[0]));
+
+//                        byte[] encryptedMessage = crypto.encrypt(message, Server.userSockets.get(args[0]).symmetricKey, iv);
+//                        Server.userSockets.get(args[0]).sc.write(ByteBuffer.wrap(iv.getIV()));
+//                        Server.userSockets.get(args[0]).sc.write(ByteBuffer.wrap(encryptedMessage));
 //                        sc.write(buf);
 
 //                    	Server.userSockets.get(args[0]).sc.write(ByteBuffer.wrap());
@@ -171,6 +171,32 @@ class TcpServerThread extends Thread {
         } catch (IOException e) {
             System.out.println(e.getMessage());
         }
+    }
+
+    private byte[] readSocket() throws IOException {
+//        ByteBuffer ivbuffer = ByteBuffer.allocate(16);
+//        ByteBuffer buffer = ByteBuffer.allocate(4096);
+        ByteBuffer[] bufs = {ByteBuffer.allocate(16), ByteBuffer.allocate(4096)};
+        sc.read(bufs);
+        bufs[0].flip();
+        IvParameterSpec iv = new IvParameterSpec(bufs[0].array());
+
+        int size = 4096 - bufs[1].remaining();
+        bufs[1].flip();
+        byte[] bytes = new byte[size];
+        bufs[1].get(bytes,0,size);
+        System.out.println(bytes.length);
+        return crypto.decrypt(bytes, key, iv);
+    }
+
+    private void writeSocket(String msg, ClientConnection client) throws IOException {
+        byte ivbytes[] = new byte[16];
+        r.nextBytes(ivbytes);
+        IvParameterSpec iv = new IvParameterSpec(ivbytes);
+
+        byte[] encryptedMessage = crypto.encrypt(msg.getBytes(), client.symmetricKey, iv);
+        ByteBuffer[] bufs = {ByteBuffer.wrap(iv.getIV()), ByteBuffer.wrap(encryptedMessage)};
+        client.sc.write(bufs);
     }
 }
 

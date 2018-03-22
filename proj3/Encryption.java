@@ -53,7 +53,7 @@ class Encryption {
 			byte[] plaintext = c.doFinal(ciphertext);
 			return plaintext;
 		}catch(Exception e){
-			System.out.println(e.getCause() + ": " + e.getMessage());
+			System.out.println(e.getMessage());
             e.printStackTrace();
 			System.exit(1);
 			return null;
