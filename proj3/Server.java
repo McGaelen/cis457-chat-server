@@ -20,6 +20,7 @@ class Server {
         int portNum = Integer.parseInt(args[0]);
 
         userSockets = new HashMap<>();
+        Encryption crypto = new Encryption();
 
 		Runtime.getRuntime().addShutdownHook(new Thread(() -> {
             System.out.println("running shutdown hook");
@@ -28,7 +29,7 @@ class Server {
                 Map.Entry pair = (Map.Entry) it.next();
                 ClientConnection cc = (ClientConnection)pair.getValue();
                 try {
-                    cc.sc.write(ByteBuffer.wrap("!shutdown".getBytes()));
+                    Server.writeSocket("!shutdown", cc, new SecureRandom(), crypto);
                     cc.sc.close();
                 } catch (IOException e) {
                     System.out.println(e.getMessage());
@@ -40,7 +41,6 @@ class Server {
         try {
             ServerSocketChannel c = ServerSocketChannel.open();
             c.bind(new InetSocketAddress(portNum));
-            Encryption crypto = new Encryption();
             crypto.setPrivateKey("RSApriv.der");
             while (true) {
                 sc = c.accept();
@@ -56,6 +56,16 @@ class Server {
         } catch (IOException e) {
             System.out.println(e.getMessage());
         }
+    }
+
+    private static void writeSocket(String msg, ClientConnection client, SecureRandom r, Encryption crypto) throws IOException {
+        byte ivbytes[] = new byte[16];
+        r.nextBytes(ivbytes);
+        IvParameterSpec iv = new IvParameterSpec(ivbytes);
+
+        byte[] encryptedMessage = crypto.encrypt(msg.getBytes(), client.symmetricKey, iv);
+        ByteBuffer[] bufs = {ByteBuffer.wrap(iv.getIV()), ByteBuffer.wrap(encryptedMessage)};
+        client.sc.write(bufs);
     }
 }
 
@@ -123,30 +133,31 @@ class TcpServerThread extends Thread {
                         response = response.concat(pair.getKey() + "\n");
                     }
 
-                    sc.write(ByteBuffer.wrap(response.getBytes()));
+                    writeSocket(response, Server.userSockets.get(username));
                 } else if (args[0].equals("!kick")) {
                     if (args[1].equals(Server.password)) {
                         Iterator it = Server.userSockets.entrySet().iterator();
                         while (it.hasNext()) {
                             Map.Entry pair = (Map.Entry) it.next();
                             if (pair.getKey().equals(args[2])) {
-                                SocketChannel sc = (SocketChannel) pair.getValue();
-                                sc.write(ByteBuffer.wrap("You have been kicked.".getBytes()));
-                                sc.close();
+                                ClientConnection cc = (ClientConnection) pair.getValue();
+                                writeSocket("You have been kicked.", cc);
+                                cc.sc.close();
                                 it.remove();
                             }
                         }
                     } else {
-                        sc.write(ByteBuffer.wrap("Naughty naughty! Bad Client!".getBytes()));
+                        writeSocket("Naughty naughty! Bad Client!", Server.userSockets.get(username));
                     }
                 } else if (args[0].equals("!all")) {
                     Iterator it = Server.userSockets.entrySet().iterator();
                     while (it.hasNext()) {
                         Map.Entry pair = (Map.Entry)it.next();
-                        if (!pair.getValue().equals(sc)) {
-                            SocketChannel sc = (SocketChannel)pair.getValue();
+                        ClientConnection cc = (ClientConnection)pair.getValue();
+                        if (!cc.sc.equals(sc)) {
                             String response = command.substring(command.indexOf(' ') + 1);
-                            sc.write(ByteBuffer.wrap((username + ": " + response).getBytes()));
+                            response = username + ": " + response;
+                            writeSocket(response, cc);
                         }
                     }
                 } else {
@@ -164,7 +175,7 @@ class TcpServerThread extends Thread {
 
 //                    	Server.userSockets.get(args[0]).sc.write(ByteBuffer.wrap());
 					} catch (NullPointerException e) {
-						sc.write(ByteBuffer.wrap("Requested user does not exist.".getBytes()));
+						writeSocket("Requested user does not exist.", Server.userSockets.get(username));
 					}
                 }
             }
@@ -185,7 +196,7 @@ class TcpServerThread extends Thread {
         bufs[1].flip();
         byte[] bytes = new byte[size];
         bufs[1].get(bytes,0,size);
-        System.out.println(bytes.length);
+//        System.out.println(bytes.length);
         return crypto.decrypt(bytes, key, iv);
     }
 

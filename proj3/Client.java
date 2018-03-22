@@ -126,7 +126,7 @@ class ClientThread extends Thread {
         bufs[1].flip();
         byte[] bytes = new byte[size];
         bufs[1].get(bytes,0,size);
-        System.out.println(bytes.length);
+//        System.out.println(bytes.length);
         return crypto.decrypt(bytes, key, iv);
     }
 }
