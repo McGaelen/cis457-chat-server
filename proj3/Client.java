@@ -35,7 +35,6 @@ class Client {
             String username = cons.readLine("What username? ");
             username = "!rename " + username;
             Client.writeSocket(username, sc, r, crypto, symmetricKey);
-//            sc.write(ByteBuffer.wrap(username.getBytes()));
 
 			System.out.print(">> ");
             while (true) {
@@ -47,13 +46,6 @@ class Client {
                     break;
                 }
                 Client.writeSocket(message, sc, r, crypto, symmetricKey);
-//                byte ivbytes[] = new byte[16];
-//		        r.nextBytes(ivbytes);
-//		        IvParameterSpec iv = new IvParameterSpec(ivbytes);
-//		        byte[] encryptedMessage = crypto.encrypt(message.getBytes(), symmetricKey, iv);
-//                ByteBuffer buf = ByteBuffer.wrap(encryptedMessage);
-//                sc.write(ByteBuffer.wrap(iv.getIV()));
-//                sc.write(buf);
 				printPrompt = true;
             }
             sc.close();
