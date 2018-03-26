@@ -90,18 +90,6 @@ class ClientThread extends Thread {
         String recieved;
         try {
             while (true) {
-//                ByteBuffer ivbuffer = ByteBuffer.allocate(16);
-//                sc.read(ivbuffer);
-//                IvParameterSpec iv = new IvParameterSpec(ivbuffer.array());
-//
-//                ByteBuffer buffer = ByteBuffer.allocate(4096);
-//                int size = sc.read(buffer);
-//                buffer.flip();
-//                byte[] bytes = new byte[size];
-//                buffer.get(bytes,0,size);
-//                byte[] decryptedMessage = crypto.decrypt(bytes, key, iv);
-//                byte[] a = new byte[buffer.remaining()];
-//                buffer.get(a);
                 recieved = new String(readSocket());
                 System.out.println(recieved);
                 if (recieved.equals("You have been kicked.") || recieved.equals("!shutdown")) {
@@ -115,8 +103,6 @@ class ClientThread extends Thread {
     }
 
     private byte[] readSocket() throws IOException {
-//        ByteBuffer ivbuffer = ByteBuffer.allocate(16);
-//        ByteBuffer buffer = ByteBuffer.allocate(4096);
         ByteBuffer[] bufs = {ByteBuffer.allocate(16), ByteBuffer.allocate(4096)};
         sc.read(bufs);
         bufs[0].flip();
@@ -126,7 +112,6 @@ class ClientThread extends Thread {
         bufs[1].flip();
         byte[] bytes = new byte[size];
         bufs[1].get(bytes,0,size);
-//        System.out.println(bytes.length);
         return crypto.decrypt(bytes, key, iv);
     }
 }

@@ -91,19 +91,6 @@ class TcpServerThread extends Thread {
 
         try {
             while (true) {
-//                ByteBuffer ivbuffer = ByteBuffer.allocate(16);
-//                sc.read(ivbuffer);
-//                IvParameterSpec iv = new IvParameterSpec(ivbuffer.array());
-//
-//                ByteBuffer buffer = ByteBuffer.allocate(4096);
-//                int size = sc.read(buffer);
-//                buffer.flip();
-//                byte[] bytes = new byte[size];
-//                buffer.get(bytes,0,size);
-//                System.out.println(bytes.length);
-//                byte[] decryptedMessage = crypto.decrypt(bytes, key, iv);
-//                byte[] a = new byte[buffer.remaining()];
-//                buffer.get(a);
                 command = new String(readSocket());
 				if (command.equals("")) {
 					continue;
@@ -162,18 +149,8 @@ class TcpServerThread extends Thread {
                     }
                 } else {
 					try {
-//                        byte ivbytes[] = new byte[16];
-//                        r.nextBytes(ivbytes);
-//                        IvParameterSpec sendiv = new IvParameterSpec(ivbytes);
                         String message = (username + ": " + command.substring(command.indexOf(' ') + 1));
                         writeSocket(message, Server.userSockets.get(args[0]));
-
-//                        byte[] encryptedMessage = crypto.encrypt(message, Server.userSockets.get(args[0]).symmetricKey, iv);
-//                        Server.userSockets.get(args[0]).sc.write(ByteBuffer.wrap(iv.getIV()));
-//                        Server.userSockets.get(args[0]).sc.write(ByteBuffer.wrap(encryptedMessage));
-//                        sc.write(buf);
-
-//                    	Server.userSockets.get(args[0]).sc.write(ByteBuffer.wrap());
 					} catch (NullPointerException e) {
 						writeSocket("Requested user does not exist.", Server.userSockets.get(username));
 					}
@@ -185,8 +162,6 @@ class TcpServerThread extends Thread {
     }
 
     private byte[] readSocket() throws IOException {
-//        ByteBuffer ivbuffer = ByteBuffer.allocate(16);
-//        ByteBuffer buffer = ByteBuffer.allocate(4096);
         ByteBuffer[] bufs = {ByteBuffer.allocate(16), ByteBuffer.allocate(4096)};
         sc.read(bufs);
         bufs[0].flip();
@@ -196,7 +171,6 @@ class TcpServerThread extends Thread {
         bufs[1].flip();
         byte[] bytes = new byte[size];
         bufs[1].get(bytes,0,size);
-//        System.out.println(bytes.length);
         return crypto.decrypt(bytes, key, iv);
     }
 
